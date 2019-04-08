@@ -111,6 +111,9 @@ type Validator struct {
 	// validationFuncs is a map of ValidationFuncs indexed
 	// by their name.
 	validationFuncs map[string]ValidationFunc
+
+	// i18n errors
+	validationErrors map[error]error
 }
 
 // Helper validator so users can use the
@@ -128,6 +131,7 @@ func NewValidator() *Validator {
 			"max":     max,
 			"regexp":  regex,
 		},
+		validationErrors: map[error]error{},
 	}
 }
 
@@ -155,6 +159,18 @@ func (mv *Validator) WithTag(tag string) *Validator {
 	v := mv.copy()
 	v.SetTag(tag)
 	return v
+}
+
+// Customer i18n errors
+func (mv *Validator) SetError(key, value error) {
+	if key == nil {
+		return
+	}
+	if value == nil {
+		delete(mv.validationErrors, key)
+		return
+	}
+	mv.validationErrors[key] = value
 }
 
 // Copy a validator
@@ -302,17 +318,25 @@ func (mv *Validator) Valid(val interface{}, tags string) error {
 	return err
 }
 
+// Custom i18n error
+func (mv *Validator) i18n(err error) error {
+	if err, found := mv.validationErrors[err]; found {
+		return err
+	}
+	return err
+}
+
 // validateVar validates one single variable
 func (mv *Validator) validateVar(v interface{}, tag string) error {
 	tags, err := mv.parseTags(tag)
 	if err != nil {
 		// unknown tag found, give up.
-		return err
+		return mv.i18n(err)
 	}
 	errs := make(ErrorArray, 0, len(tags))
 	for _, t := range tags {
 		if err := t.Fn(v, t.Param); err != nil {
-			errs = append(errs, err)
+			errs = append(errs, mv.i18n(err))
 		}
 	}
 	if len(errs) > 0 {
@@ -329,10 +353,10 @@ type tag struct {
 }
 
 // separate by no escaped commas
-var sepPattern *regexp.Regexp = regexp.MustCompile(`((?:^|[^\\])(?:\\\\)*),`)
+var sepPattern = regexp.MustCompile(`((?:^|[^\\])(?:\\\\)*),`)
 
 func splitUnescapedComma(str string) []string {
-	ret := []string{}
+	var ret []string
 	indexes := sepPattern.FindAllStringIndex(str, -1)
 	last := 0
 	for _, is := range indexes {

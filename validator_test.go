@@ -17,11 +17,13 @@
 package validator_test
 
 import (
+	"errors"
 	"reflect"
 	"testing"
 
+	"github.com/heramerom/validator"
 	. "gopkg.in/check.v1"
-	"gopkg.in/validator.v2"
+	//"gopkg.in/validator.v2"
 )
 
 func Test(t *testing.T) {
@@ -495,6 +497,19 @@ func (ms *MySuite) TestTagEscape(c *C) {
 	errs, ok := err.(validator.ErrorMap)
 	c.Assert(ok, Equals, true)
 	c.Assert(errs["A"], HasError, validator.ErrRegexp)
+}
+
+func (ms *MySuite) TestI18n(c *C) {
+	val := validator.NewValidator()
+	zeroValueI18n := validator.TextErr{Err: errors.New("不能为空")}
+	val.SetError(validator.ErrZeroValue, zeroValueI18n)
+	type test struct {
+		Require string `validate:"nonzero"`
+	}
+	err := val.Validate(test{})
+	errs, ok := err.(validator.ErrorMap)
+	c.Assert(ok, Equals, true)
+	c.Assert(errs["Require"], HasError, zeroValueI18n)
 }
 
 type hasErrorChecker struct {
